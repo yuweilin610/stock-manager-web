@@ -114,11 +114,10 @@ def get_next_delivery_str(now_tw_obj, schedule):
         target_date += timedelta(days=1)
         
     # 3. 建立台灣目標時間物件 (CST) 並自動轉換為愛爾蘭時間 (IST/GMT)
-    # pytz 會根據 target_date 自動處理愛爾蘭的夏令(UTC+1)或冬令(UTC+0)轉換
     target_dt_tw = tw_tz.localize(datetime.combine(target_date, datetime.min.time().replace(hour=target_tw_h)))
     target_dt_ie = target_dt_tw.astimezone(ie_tz)
     
-    # 4. 生成日期標籤 (顯示 Today/Tomorrow/Next Monday)
+    # 4. 生成日期標籤
     today_date = now_tw_obj.date()
     if target_date == today_date:
         day_tw = "Today"
@@ -127,7 +126,6 @@ def get_next_delivery_str(now_tw_obj, schedule):
     else:
         day_tw = "Next Monday"
         
-    # 判定愛爾蘭端的日期標籤 (因為時差，IST 可能在 CST 的前一天)
     if target_dt_ie.date() < target_date:
         day_ie = "Yesterday" if day_tw == "Today" else "Today" if day_tw == "Tomorrow" else "Next Sunday"
     else:
@@ -135,7 +133,6 @@ def get_next_delivery_str(now_tw_obj, schedule):
 
     return f"**{day_ie}** at **{target_dt_ie.strftime('%H:%M')} IST** / **{day_tw}** at **{target_dt_tw.strftime('%H:%M')} CST**"
 
-# 呼叫更新後的函數
 delivery_msg = get_next_delivery_str(now_tw, db_schedule)
 st.info(f"Current setting: **{db_schedule}**. Next dispatch: {delivery_msg}")
 
@@ -144,7 +141,6 @@ schedule_options = ["AFTERNOON", "MORNING", "BOTH"]
 new_schedule = st.selectbox("Adjust Delivery Shift", schedule_options, 
                             index=schedule_options.index(db_schedule) if db_schedule in schedule_options else 0)
 
-# 💡 報告重點說明 HTML 區塊 (中文)
 st.markdown("""
 <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; font-size: 0.88rem; color: #444; border-left: 5px solid #007bff;">
     <strong>💡 報告重點說明 (台灣時間):</strong><br>
@@ -168,7 +164,8 @@ if new_schedule != db_schedule:
 st.divider()
 st.subheader("📝 Portfolio Watchlist")
 stocks = [s.strip() for s in current_vars.get("STOCK_LIST", "").split(",") if s.strip()]
-st.caption(f"{len(stocks)} / 10 Tickers Selected")
+# 🚀 修改點 1: 顯示上限改為 5
+st.caption(f"{len(stocks)} / 5 Tickers Selected")
 
 for idx, s in enumerate(stocks):
     c1, c2, c3, c4 = st.columns([3, 0.5, 0.5, 1])
@@ -195,29 +192,26 @@ for idx, s in enumerate(stocks):
         st.cache_data.clear()
         st.rerun()
 
-# 股票輸入：強制轉大寫與檢查重複
 new_stock = st.text_input("Enter Ticker Symbol", placeholder="e.g. nvda").upper().strip()
 if st.button("➕ Add to Watchlist"):
     if new_stock:
         if new_stock in stocks:
             st.error(f"Ticker '{new_stock}' is already in your watchlist.")
-        elif len(stocks) >= 10:
-            st.warning("Watchlist is full (Maximum 10 tickers).")
+        # 🚀 修改點 2: 檢查上限改為 5
+        elif len(stocks) >= 5:
+            st.warning("Watchlist is full (Maximum 5 tickers).")
         else:
             stocks.append(new_stock)
             current_vars["STOCK_LIST"] = ",".join(stocks)
             lambda_client.update_function_configuration(FunctionName=LAMBDA_NAME, Environment={'Variables': current_vars})
-            
-            # --- 顯示股票新增成功與警示 ---
             st.success(f"Ticker '{new_stock}' added successfully!")
             st.info("Notice: This ticker will be analyzed in the next report.")
-            
             st.cache_data.clear()
             time.sleep(1.5)
             st.rerun()
 
 # =================================================================
-# SECTION E: Subscriber Management (訂閱管理 - 刪除重驗與 Pending 標籤)
+# SECTION E: Subscriber Management
 # =================================================================
 st.divider()
 st.subheader("📧 Intelligence Subscribers")
@@ -231,7 +225,6 @@ if sub_count >= MAX_SUBS:
 else:
     st.success(f"Capacity: {sub_count}/{MAX_SUBS} Slots Available.")
 
-# 檢查 SES 驗證狀態
 status_map = check_email_verification(emails)
 
 for e in emails:
@@ -245,7 +238,6 @@ for e in emails:
     elif ec2.button("🗑️", key=f"del_e_{e}"):
         emails.remove(e)
         current_vars["RECEIVER_EMAILS"] = ",".join(emails)
-        # 同步刪除 SES Identity 確保下次加回必須重新驗證
         try:
             ses_client.delete_identity(Identity=e)
         except:
@@ -254,7 +246,6 @@ for e in emails:
         st.cache_data.clear()
         st.rerun()
 
-# 新增 Email：自動小寫、重複檢查、三重警示
 is_full = sub_count >= MAX_SUBS
 new_email = st.text_input("Invite New Recipient", disabled=is_full, placeholder="example@mail.com").strip().lower()
 
@@ -263,17 +254,13 @@ if st.button("📩 Dispatch Invitation", disabled=is_full or not new_email):
         st.error(f"Recipient '{new_email}' is already in the list.")
     else:
         try:
-            # 向 SES 請求驗證
             ses_client.verify_email_identity(EmailAddress=new_email)
             emails.append(new_email)
             current_vars["RECEIVER_EMAILS"] = ",".join(emails)
             lambda_client.update_function_configuration(FunctionName=LAMBDA_NAME, Environment={'Variables': current_vars})
-            
-            # --- 顯示 Email 新增成功與三重警示 ---
             st.success(f"Invitation dispatched to {new_email}.")
             st.info("Notice: Changes will take effect in the next dispatch cycle.")
             st.warning("New subscribers must click the verification link in their inbox.")
-            
             st.cache_data.clear()
             time.sleep(2) 
             st.rerun() 
