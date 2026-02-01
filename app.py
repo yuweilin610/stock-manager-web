@@ -2,7 +2,7 @@ import streamlit as st
 import boto3
 import pytz
 import time
-from datetime import datetime
+from datetime import datetime, timedelta  # 引入 timedelta 處理日期加減
 
 # =================================================================
 # SECTION A: Configurations & UI Setup (AWS 與介面設定)
@@ -86,33 +86,57 @@ col_t1, col_t2 = st.columns(2)
 ie_tz, tw_tz = pytz.timezone('Europe/Dublin'), pytz.timezone('Asia/Taipei')
 now_ie, now_tw = datetime.now(ie_tz), datetime.now(tw_tz)
 
-with col_t1: st.metric("Dublin (IST)", now_ie.strftime("%H:%M"))
+with col_t1: st.metric("Dublin (IST/GMT)", now_ie.strftime("%H:%M"))
 with col_t2: st.metric("Taipei (CST)", now_tw.strftime("%H:%M"))
 
 st.divider()
 st.subheader("📬 Next Dispatch Status")
 db_schedule = current_vars.get("REPORT_SCHEDULE", "AFTERNOON")
 
-# 計算下一次發送時間的邏輯函數
-def get_next_delivery_str(tw_hour, schedule):
-    if schedule == "MORNING": target_tw = 7
-    elif schedule == "AFTERNOON": target_tw = 15
-    else: target_tw = 7 if tw_hour < 7 else (15 if tw_hour < 15 else 7)
+# --- 🚀 優化後的時間邏輯函數：處理週末與冬夏令轉換 ---
+def get_next_delivery_str(now_tw_obj, schedule):
+    tw_hour = now_tw_obj.hour
     
-    day_tw = "Today"
-    if (schedule == "MORNING" and tw_hour >= 7) or \
-       (schedule == "AFTERNOON" and tw_hour >= 15) or \
-       (schedule == "BOTH" and tw_hour >= 15):
+    # 1. 決定目標台灣小時
+    if schedule == "MORNING": target_tw_h = 7
+    elif schedule == "AFTERNOON": target_tw_h = 15
+    else: target_tw_h = 7 if tw_hour < 7 else (15 if tw_hour < 15 else 7)
+    
+    # 2. 判定發送日期 (跳過週末)
+    target_date = now_tw_obj.date()
+    
+    # 如果今天時間已過，先推到明天
+    if tw_hour >= target_tw_h:
+        target_date += timedelta(days=1)
+    
+    # 確保跳過週六(5)與週日(6)，移至下週一
+    while target_date.weekday() >= 5:
+        target_date += timedelta(days=1)
+        
+    # 3. 建立台灣目標時間物件 (CST) 並自動轉換為愛爾蘭時間 (IST/GMT)
+    # pytz 會根據 target_date 自動處理愛爾蘭的夏令(UTC+1)或冬令(UTC+0)轉換
+    target_dt_tw = tw_tz.localize(datetime.combine(target_date, datetime.min.time().replace(hour=target_tw_h)))
+    target_dt_ie = target_dt_tw.astimezone(ie_tz)
+    
+    # 4. 生成日期標籤 (顯示 Today/Tomorrow/Next Monday)
+    today_date = now_tw_obj.date()
+    if target_date == today_date:
+        day_tw = "Today"
+    elif target_date == today_date + timedelta(days=1):
         day_tw = "Tomorrow"
-
-    if target_tw == 7:
-        ist_time = "23:00"; day_ist = "Today" if day_tw == "Tomorrow" else "Yesterday"
-        return f"**{day_ist}** at **{ist_time} IST** / **{day_tw}** at **07:00 CST**"
     else:
-        ist_time = "07:00"
-        return f"**{day_tw}** at **{ist_time} IST** / **{day_tw}** at **15:00 CST**"
+        day_tw = "Next Monday"
+        
+    # 判定愛爾蘭端的日期標籤 (因為時差，IST 可能在 CST 的前一天)
+    if target_dt_ie.date() < target_date:
+        day_ie = "Yesterday" if day_tw == "Today" else "Today" if day_tw == "Tomorrow" else "Next Sunday"
+    else:
+        day_ie = day_tw
 
-delivery_msg = get_next_delivery_str(now_tw.hour, db_schedule)
+    return f"**{day_ie}** at **{target_dt_ie.strftime('%H:%M')} IST** / **{day_tw}** at **{target_dt_tw.strftime('%H:%M')} CST**"
+
+# 呼叫更新後的函數
+delivery_msg = get_next_delivery_str(now_tw, db_schedule)
 st.info(f"Current setting: **{db_schedule}**. Next dispatch: {delivery_msg}")
 
 st.subheader("⏰ Delivery Schedule")
