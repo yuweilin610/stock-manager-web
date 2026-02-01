@@ -175,7 +175,7 @@ with col_btn:
         # 1. 檢查忙碌狀態
         latest_vars = get_latest_vars_direct()
         if latest_vars.get("IS_PROCESSING", "false").lower() == "true":
-            st.error("System Busy: An analysis is already in progress. Your limit has NOT been deducted.")
+            st.error("System Busy: An analysis is already in progress.")
         else:
             try:
                 # 🚀 【修改】加入 Payload 告知 Lambda 這是手動觸發
