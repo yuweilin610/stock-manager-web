@@ -33,12 +33,28 @@ except Exception as e:
     st.error("AWS Authentication failed. Please check Streamlit Secrets.")
     st.stop()
 
+# [函數] 抓取雲端 Lambda 環境變數 (不使用快取的版本，用於啟動重置)
+def get_latest_vars_direct():
+    response = lambda_client.get_function_configuration(FunctionName=LAMBDA_NAME)
+    return response.get('Environment', {}).get('Variables', {})
+
+# 🚀 【新增】啟動即歸零邏輯：確保測試時部署完即可按按鈕
+if "reset_done" not in st.session_state:
+    try:
+        boot_vars = get_latest_vars_direct()
+        boot_vars["TRIGGER_COUNT"] = "0"
+        boot_vars["LAST_TRIGGER_DATE"] = datetime.now(pytz.timezone('Asia/Taipei')).strftime("%Y-%m-%d")
+        lambda_client.update_function_configuration(FunctionName=LAMBDA_NAME, Environment={'Variables': boot_vars})
+        st.session_state.reset_done = True
+        time.sleep(1) # 等待 AWS 生效
+    except:
+        pass
+
 # [函數] 抓取雲端 Lambda 環境變數 (快取 2 秒)
 @st.cache_data(ttl=2)
 def get_lambda_vars():
     """獲取 Lambda 目前的環境配置"""
-    response = lambda_client.get_function_configuration(FunctionName=LAMBDA_NAME)
-    return response.get('Environment', {}).get('Variables', {})
+    return get_latest_vars_direct()
 
 try:
     current_vars = get_lambda_vars()
@@ -129,6 +145,9 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# 🚀 【修改】增加間距
+st.write("")
+
 if new_schedule != db_schedule:
     current_vars["REPORT_SCHEDULE"] = new_schedule
     lambda_client.update_function_configuration(FunctionName=LAMBDA_NAME, Environment={'Variables': current_vars})
@@ -152,27 +171,29 @@ with col_btn:
     btn_label = "Daily Limit Reached" if not can_press else f"Manual Trigger ({trigger_count}/2)"
     
     if st.button(btn_label, use_container_width=True, type="primary", disabled=not (can_press and setup_ready)):
-        # 先檢查系統忙碌狀態 (不扣額度)
-        latest_vars = get_lambda_vars()
+        # 1. 檢查忙碌狀態
+        latest_vars = get_latest_vars_direct()
         if latest_vars.get("IS_PROCESSING", "false").lower() == "true":
             st.error("System Busy: An analysis is already in progress. Your limit has NOT been deducted. Please try again later.")
         else:
             try:
-                # 確認沒在跑才扣次數與觸發
+                # 🚀 【修改】先觸發 Lambda
+                lambda_client.invoke(FunctionName=LAMBDA_NAME, InvocationType='Event')
+                
+                # 🚀 【修改】觸發成功才更新次數與雲端設定
                 new_count = trigger_count + 1
                 current_vars["TRIGGER_COUNT"] = str(new_count)
                 current_vars["LAST_TRIGGER_DATE"] = today_str
                 lambda_client.update_function_configuration(FunctionName=LAMBDA_NAME, Environment={'Variables': current_vars})
                 
-                lambda_client.invoke(FunctionName=LAMBDA_NAME, InvocationType='Event')
-                
-                # 成功訊息含收件提醒
                 st.success(f"✅ Triggered! ({new_count}/2 used today). Please check your inbox in a few minutes. (Don't forget to check your SPAM folder!)")
                 
                 time.sleep(3)
                 st.cache_data.clear(); st.rerun()
             except Exception as e:
+                # 🚀 【新增】失敗攔截：不扣次數
                 st.error(f"Trigger failed: {e}")
+                st.info("Notice: Your daily limit has NOT been deducted because of this error.")
 
 with col_info:
     if not setup_ready:
@@ -184,7 +205,7 @@ with col_info:
         st.markdown("""<div style="font-size: 0.85rem; color: #d9534f; font-weight: bold; border: 1px solid #d9534f; padding: 10px; border-radius: 6px;">💡 Reminder: Make sure to add YOUR email to "Subscribers" below first.</div>""", unsafe_allow_html=True)
 
 # =================================================================
-# 區塊 D: Portfolio Watchlist
+# 區塊 D: Portfolio Watchlist (以下均保持不變)
 # =================================================================
 st.divider()
 st.subheader("📝 Portfolio Watchlist")
@@ -227,7 +248,7 @@ if st.button("➕ Add to Watchlist"):
             st.cache_data.clear(); time.sleep(1.5); st.rerun()
 
 # =================================================================
-# 區塊 E: Subscriber Management
+# 區塊 E: Subscriber Management (以下均保持不變)
 # =================================================================
 st.divider()
 st.subheader("📧 Intelligence Subscribers")
