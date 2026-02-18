@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stock Watchlist Settings</title>
+
+  <link rel="stylesheet" href="./styles.css" />
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="inner">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>Stock Watchlist Settings</h1>
+          <p>Watchlist and report delivery time (Ireland)</p>
+        </div>
+      </div>
+      <div class="right-meta">
+        <div class="pill" title="Connected">
+          <span class="dot" aria-hidden="true"></span>
+          <span>Online mode</span>
+        </div>
+        <div class="pill" id="tzPill" title="Time zone used for scheduling">
+          <span class="mono">Europe/Dublin</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card" aria-labelledby="wlTitle">
+      <div class="hd">
+        <div>
+          <h2 id="wlTitle">Watchlist</h2>
+          <p>Enter an email to load a user's watchlist. Up to 5 tickers. Add or remove with instant notifications.</p>
+        </div>
+      </div>
+      <div class="bd">
+        <div class="grid">
+          <div class="split">
+            <div class="field">
+              <label for="emailInput">User email</label>
+              <input class="input" id="emailInput" type="email" placeholder="name@example.com" autocomplete="email" />
+              <div class="help">Enter an email and click Load to view settings.</div>
+            </div>
+            <button class="btn primary" id="lookupBtn" type="button">Load</button>
+          </div>
+
+          <div class="limit" aria-live="polite">
+            <div style="flex:1; min-width: 0;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <div>
+                  <div style="font-weight:900; font-size:13px;">Watchlist limit</div>
+                  <div class="help">You can track up to 5 tickers</div>
+                </div>
+                <div class="kpi">
+                  <div class="big" id="limitText">0 / 5</div>
+                  <div class="small" id="limitNote">Not loaded</div>
+                </div>
+              </div>
+              <div class="bar" style="margin-top:10px;"><i id="limitBar"></i></div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="field">
+            <label for="stockInput">Add a stock (ticker or name)</label>
+            <div class="row" style="align-items:stretch;">
+              <input class="input" id="stockInput" type="text" placeholder="e.g., AAPL or Apple" inputmode="text" />
+              <button class="btn" id="addBtn" type="button">Add</button>
+            </div>
+            <div class="help">Input is converted to uppercase. Press Enter to add. Duplicates will be rejected.</div>
+          </div>
+
+          <div class="list" id="stockList" aria-live="polite"></div>
+
+          <div class="hint">
+            <div aria-hidden="true">💡</div>
+            <div>
+              <strong>Behavior</strong>
+              <div>Remove: fade-out animation + toast</div>
+              <div>Limit: max 5 tickers</div>
+              <div>Enter to add; duplicates show a toast</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="card" aria-labelledby="rpTitle">
+      <div class="hd">
+        <div>
+          <h2 id="rpTitle">Report delivery</h2>
+          <p>Shows the next delivery time in Ireland time (Europe/Dublin). Change the dropdown and click Save to update.</p>
+        </div>
+      </div>
+      <div class="bd">
+        <div class="grid">
+          <div class="schedule-box">
+            <div>
+              <div style="font-weight:900; font-size:13px;">Next delivery (email)</div>
+              <div class="help" id="nextSendText">Load a user to see the next delivery time</div>
+            </div>
+            <button class="btn ghost small" id="refreshNextBtn" type="button">Refresh</button>
+          </div>
+
+          <div class="field">
+            <label for="reportTime">Preferred report time</label>
+            <div class="row" style="align-items:stretch;">
+              <div class="select-wrap" style="flex:1;">
+                <select class="input" id="reportTime">
+                  <option value="14:30">Ireland 14:30</option>
+                  <option value="21:00" selected>Ireland 21:00</option>
+                </select>
+              </div>
+              <button class="btn primary" id="saveScheduleBtn" type="button">Save</button>
+            </div>
+            <div class="help">Saving updates the next delivery time immediately.</div>
+          </div>
+
+          <div class="divider"></div>
+          <div style="padding-top: 10px;">
+            <button class="btn danger" id="unsubscribeBtn" type="button" style="width: 100%; border: 1px solid rgba(209, 46, 46, 0.3); background: rgba(209, 46, 46, 0.05); color: #d12e2e;">
+              Unsubscribe from Market Oracle
+            </button>
+            <div class="help" style="text-align: center; margin-top: 8px;">Stop receiving all automated reports.</div>
+          </div>
+          
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <div class="toast-host" id="toastHost" aria-live="polite" aria-relevant="additions"></div>
+</body>
+</html>
