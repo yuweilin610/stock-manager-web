@@ -75,7 +75,7 @@ html,body{
   gap:10px;
   min-width: 220px;
 }
-.logo{
+/* .logo{
   width: 34px;
   height: 34px;
   border-radius: 12px;
@@ -83,7 +83,13 @@ html,body{
   box-shadow: 0 10px 26px rgba(124,92,255,.25);
   position:relative;
   overflow:hidden;
+} */
+.logo {
+  width: 40px;
+  height: 40px;
+  background: url("page_icon.png") center/contain no-repeat;
 }
+
 .logo:after{
   content:"";
   position:absolute;
