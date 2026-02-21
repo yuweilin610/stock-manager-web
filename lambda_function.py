@@ -47,30 +47,30 @@ def run_gemini_analysis(stocks, recipients, current_hour):
     
     # --- 你的核心 Prompt (鎖死 HTML 格式與邏輯) ---
     prompt = (
+        "Please respond in English. All analysis and content must be in English.\n" # 🚀 強制指定全英文
         f"今天是 {current_date}。請針對股票：{', '.join(stocks)} 進行 24 小時內的深度市場掃描。"
+        f"**【分段標記指令】每支股票開始前，請務必輸出一行 [STOCK_START:代號]，結束後輸出一行 [STOCK_END:代號]。**\n"
         f"**【最高核心指令：時間邏輯與連結鎖定】**\n"
         f"1. **強制時間校對**：禁止僅憑標題判斷。必須深度解析網頁 Metadata (datePublished)、Meta 標籤或網址中的日期路徑。絕對禁止引用任何實際發佈於 {current_date} 之前的新聞，僅限 24 小時內動態。\n"
-        f"2. **Forbes 連結過濾**：若引用 Forbes，路徑必須使用官方頻道（如 sites/greatspeculations/），絕對禁止使用 sites/trefis/ 等協力廠商路徑。\n"
-        f"3. **Economic Times 修正**：若引用 indiatimes.com，網址後方必須包含 '?from=mdr' 參數以確保存取正常。\n"
         f"請嚴格依照 HTML 格式輸出，禁止使用 Markdown（如 ** 或 #）。<br><br>\n\n"
         "【內容規範與格式】：\n"
-        "1. **今日亮點導讀**：置頂開頭，使用以下樣式。用 **一行字** 總結這些標的今日的集體走勢核心原因：\n"
+        "1. **今日亮點導讀**：置頂開頭，使用以下樣式。用 **一行字(English)** 總結這些標的今日的集體走勢核心原因：\n" # 提醒英文
         "   <div style='background: #f8f9fa; padding: 15px; border-left: 5px solid #1a73e8; margin-bottom: 25px; font-weight: bold;'>今日亮點導讀：{一行字總結}</div>\n\n"
         "2. **極簡分析 (每支股票)**：\n"
         "   - **標題行 (絕對禁止換行)**：<div style='font-size: 18px; color: #1a73e8; font-weight: bold; white-space: nowrap;'>{標準代號} ▸ <span style='font-size: 14px; color: #333;'>[{日期} {價格狀態}] {最新價格} {單位}</span> {漲跌幅樣式}</div>\n"
         "     * **漲跌顏色鎖死指令**：請勿讓漲跌幅文字變成超連結藍色。必須嚴格執行：\n"
         "       - 美股(英文代號)：漲用 <span style='color: #00ad2f;'>(+X%)</span>，跌用 <span style='color: #d12e2e;'>(-X%)</span>。\n"
         "       - 台股(數字代號)：漲用 <span style='color: #d12e2e;'>(+X%)</span>，跌用 <span style='color: #00ad2f;'>(-X%)</span>。\n"
-        "   - **修正提示 (強制檢查點)**：如果輸入代號非標準，此行「必須」出現在標題正下方。格式：<div style='font-size: 12px; color: #666; margin: 2px 0 8px 0;'>(您輸入的是 {輸入字串}，但我想您指的應該是 {標準代號})</div>\n"
+        "   - **修正提示 (強制檢查點)**：如果輸入代號非標準，此行「必須」出現在標題正下方。格式：<div style='font-size: 12px; color: #666; margin: 2px 0 8px 0;'>(You entered {輸入字串}, but I believe you meant {標準代號})</div>\n" # 這裡順手把提示文字英文話
         "     * **禁止省略規則**：即便你認為標準代號已在標題顯示，只要 {輸入字串} 與 {標準代號} 不同，就必須顯示此備註，不得私自優化掉。"
-        "   - **核心動態**：<li style='margin-top: 8px; list-style: none;'><b style='color: #e67e22; font-size: 12px;'>[24H 關鍵影響]</b> <a href='{新聞原始網址}' style='color: #1a73e8; text-decoration: none;'>{新聞標題內容}</a>{動態保底備註}</li>\n"
-        "   - **AI 辣評 (必須另起一行)**：<div style='margin: 8px 0 10px 25px; color: #555; font-size: 14px;'>AI 辣評：限 40 字內。基於上述新聞，直接分析對「短期股價」的具體衝擊。</div>\n"
+        "   - **核心動態**：<li style='margin-top: 8px; list-style: none;'><b style='color: #e67e22; font-size: 12px;'>[24H Key Impact]</b> <a href='{新聞原始網址}' style='color: #1a73e8; text-decoration: none;'>{新聞標題內容}</a>{動態保底備註}</li>\n" # [24H Key Impact]
+        "   - **AI 辣評 (必須另起一行)**：<div style='margin: 8px 0 10px 25px; color: #555; font-size: 14px;'>AI Commentary: Within 40 words. Based on the news above, analyze the specific impact on 'short-term stock price'.</div>\n" # AI Commentary
         "   - <hr style='border: 0; border-top: 1px solid #eee; margin: 20px 0;'>\n\n"
         "3. **連結與數量限制 (最高警戒規則)**：\n"
         "   - **嚴禁無效連結 (核心禁令)**：提供的網址必須直達文章「具體內容頁」。【絕對禁止】連結至媒體首頁、分類頁、Google 搜尋轉址，以及 google.com/grounding 形式的加密轉址。\n"
         "   - **動態保底備註邏輯 (看情況說話)**：\n"
-        "     * 情況 A (網址有轉址/加密風險而導向 Yahoo Finance)：標題後方加 <span style='color: #888; font-size: 11px;'>(為確保連結有效性，已優先提供經貿數據平台之深度報導)</span>。\n"
-        "     * 情況 B (真的完全找不到 24 小時內之新聞)：標題後方加 <span style='color: #888; font-size: 11px;'>(今日無重大影響新聞，故直接給予經貿數據平台)</span>。\n"
+        "     * 情況 A (網址有轉址/加密風險而導向 Yahoo Finance)：標題後方加 <span style='color: #888; font-size: 11px;'>(To ensure link validity, a depth report from a financial data platform has been provided.)</span>。\n"
+        "     * 情況 B (真的完全找不到 24 小時內之新聞)：標題後方加 <span style='color: #888; font-size: 11px;'>(No major impact news today, financial data platform provided instead.)</span>。\n"
         "   - **數量與一致性**：每支股票僅限 1 則影響最大新聞，標題必須與內容吻合。\n\n"
         "4. **格式要求**：禁止輸出 ```html 字樣、禁止 Markdown 粗體、禁止贅字。"
     )
