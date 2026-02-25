@@ -5,7 +5,7 @@
 const TZ = "Europe/Dublin";
 const MAX_STOCKS = 5;
 const API_URL =
-  "https://d5og0mk1hf.execute-api.eu-west-1.amazonaws.com/v1/subscribe";
+  "https://befk3btyengwqkovss4y3kacje0npcef.lambda-url.eu-west-1.on.aws/subscribe";
 
 const els = {
   emailInput: document.getElementById("emailInput"),
